@@ -1,0 +1,39 @@
+<idea-plugin>
+    <id>hydranav</id>
+    <name>Hydra Defaults Navigation</name>
+    <vendor>Saifeddine Jarboui</vendor>
+    <description><![CDATA[
+        Cmd/Ctrl+click on a Hydra <code>defaults:</code> entry such as <code>- model: base</code>
+        opens <code>&lt;config root&gt;/model/base.yaml</code>. Handles <code>override</code>,
+        <code>optional</code>, absolute <code>/group</code> keys, <code>group@package</code> and
+        bare <code>- other_config</code> entries. Renaming the target file updates the entry.
+        Cmd/Ctrl+click on a <code>_target_: pkg.module.Class</code> segment opens that package, module or class.
+        Cmd/Ctrl+click on <code>${data.tile_size}</code> opens the <code>tile_size</code> key of each <code>data</code> option.
+        Cmd/Ctrl+click on a key beside <code>_target_</code> opens that <code>__init__</code> parameter.
+        Ctrl+Space completes defaults options, <code>_target_</code> paths, <code>__init__</code> arguments and
+        <code>${...}</code> keys.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.yaml</depends>
+    <depends>com.intellij.modules.python</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <psi.referenceContributor language="yaml"
+                                  implementation="hydranav.HydraDefaultsReferenceContributor"/>
+        <completion.contributor language="yaml" implementationClass="hydranav.HydraKwargCompletionContributor"/>
+    </extensions>
+
+    <projectListeners>
+        <listener class="hydranav.ShowCommentsOnClose"
+                  topic="com.intellij.openapi.fileEditor.FileEditorManagerListener$Before"/>
+    </projectListeners>
+
+    <actions>
+        <action id="hydranav.HideComments" class="hydranav.HideCommentsAction"
+                text="Hide Comments and Docs" description="Toggle folding of all comments and docstrings">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="CodeMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
