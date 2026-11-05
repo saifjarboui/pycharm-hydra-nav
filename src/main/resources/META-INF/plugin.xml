@@ -1,11 +1,11 @@
 <idea-plugin>
     <id>hydranav</id>
     <name>Hydra Defaults Navigation</name>
-    <vendor>Saifeddine Jarboui</vendor>
+    <vendor url="https://github.com/saifjarboui/pycharm-hydra-nav">Saifeddine Jarboui</vendor>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.plugins.yaml</depends>
-    <depends>com.intellij.modules.python</depends>
+    <depends>PythonCore</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <psi.referenceContributor language="yaml"

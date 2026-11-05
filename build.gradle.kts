@@ -1,7 +1,9 @@
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 
 buildscript {
     repositories { mavenCentral() }
@@ -39,7 +41,7 @@ dependencies {
 intellijPlatform {
     instrumentCode = false // no GUI forms to instrument
     pluginConfiguration {
-        ideaVersion { sinceBuild = "262" }
+        ideaVersion { sinceBuild = "253" }
         // Marketplace description = README between the "Plugin description" markers, images made absolute.
         description = file("README.md").readText().substringAfter("<!-- Plugin description -->")
             .substringBefore("<!-- Plugin description end -->").trim().let {
@@ -55,5 +57,17 @@ intellijPlatform {
     }
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
+    // Plugin Verifier against the oldest supported PyCharm and the one we build against.
+    pluginVerification {
+        ides {
+            create(IntelliJPlatformType.PyCharm, "2025.3.6.2")
+            create(IntelliJPlatformType.PyCharm, providers.gradleProperty("pycharmVersion").get())
+        }
+        failureLevel = listOf(
+            VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
+            VerifyPluginTask.FailureLevel.INTERNAL_API_USAGES,
+            VerifyPluginTask.FailureLevel.INVALID_PLUGIN,
+        )
     }
 }

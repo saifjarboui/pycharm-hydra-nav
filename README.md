@@ -1,5 +1,9 @@
 # Hydra Defaults Navigation (PyCharm plugin)
 
+[![Marketplace](https://img.shields.io/jetbrains/plugin/v/35797?label=Marketplace)](https://plugins.jetbrains.com/plugin/35797)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/35797)](https://plugins.jetbrains.com/plugin/35797)
+[![Build](https://github.com/saifjarboui/pycharm-hydra-nav/actions/workflows/build.yml/badge.svg)](https://github.com/saifjarboui/pycharm-hydra-nav/actions/workflows/build.yml)
+
 <!-- Plugin description -->
 ![defaults navigation](docs/img/defaults.gif)
 
@@ -70,4 +74,6 @@ Then in PyCharm: Settings → Plugins → ⚙ → Install Plugin from Disk… �
 
 `./gradlew runIde` opens a test PyCharm with the plugin loaded.
 
-The build uses the PyCharm installed at `pycharmPath` (`gradle.properties`). Point that at another install to build against it.
+The build downloads PyCharm `pycharmVersion` (`gradle.properties`). To build against a local install instead, set `pycharmPath=/path/to/PyCharm.app` in `~/.gradle/gradle.properties`.
+
+`./gradlew verifyPlugin` runs the Plugin Verifier against the supported PyCharm releases.

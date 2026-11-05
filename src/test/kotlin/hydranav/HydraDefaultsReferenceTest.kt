@@ -110,6 +110,17 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
         assertNull(refAt("configs/model/k2.yaml", "net:\n  lr: 0.1\n", "lr"))
     }
 
+    fun testKwargResolvesToInheritedInit() {
+        target("pkg.models.resnet.ResNetClassifier", "x")
+        myFixture.addFileToProject(
+            "pkg/models/child.py",
+            "from pkg.models.resnet import ResNetClassifier\nclass Child(ResNetClassifier):\n    pass\n",
+        )
+        val text = "net:\n  _target_: pkg.models.child.Child\n  lr: 0.1\n"
+        val param = refAt("configs/model/inherited.yaml", text, "lr")?.resolve()
+        assertEquals("lr", (param as? PyNamedParameter)?.name)
+    }
+
     fun testRenameParameterUpdatesKwarg() {
         target("pkg.models.resnet.ResNetClassifier", "x")
         val yaml = myFixture.addFileToProject("configs/model/k.yaml", "_target_: pkg.models.resnet.ResNetClassifier\nlr: 0.1\n")

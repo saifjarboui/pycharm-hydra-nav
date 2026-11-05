@@ -23,7 +23,6 @@ import com.jetbrains.python.psi.PyClass
 import com.jetbrains.python.psi.PyFile
 import com.jetbrains.python.psi.PyFunction
 import com.jetbrains.python.psi.PyNamedParameter
-import com.jetbrains.python.psi.types.TypeEvalContext
 import com.jetbrains.python.psi.PyPsiFacade
 import org.jetbrains.yaml.YAMLUtil
 import org.jetbrains.yaml.psi.YAMLDocument
@@ -276,7 +275,7 @@ internal fun targetNames(mapping: YAMLMapping): List<String>? {
 internal fun targetCallable(mapping: YAMLMapping): PyFunction? {
     val names = targetNames(mapping) ?: return null
     return when (val target = resolveTarget(mapping, names)) {
-        is PyClass -> target.findInitOrNew(true, TypeEvalContext.codeInsightFallback(mapping.project))
+        is PyClass -> target.findInitOrNew(true, null) // null context: TypeEvalContext.Companion is missing before 2026.1
         is PyFunction -> target
         else -> null
     }
