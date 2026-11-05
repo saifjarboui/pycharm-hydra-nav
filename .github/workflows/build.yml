@@ -56,4 +56,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           case "$GITHUB_REF_NAME" in *-*) pre=--prerelease;; esac
-          gh release create "$GITHUB_REF_NAME" build/distributions/*.zip --title "$GITHUB_REF_NAME" --generate-notes $pre
+          # Release notes mirror the CHANGELOG.md line for this version.
+          notes=$(grep "^\*\*${GITHUB_REF_NAME#v}\*\*" CHANGELOG.md)
+          gh release create "$GITHUB_REF_NAME" build/distributions/*.zip --title "$GITHUB_REF_NAME" --notes "$notes" $pre
