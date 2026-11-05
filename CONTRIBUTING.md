@@ -47,6 +47,7 @@ The plugin runs in PyCharm all day, often on a laptop, so it must cost nothing w
 2. Merge to `main`; CI must pass (tests, build). The Plugin Verifier runs on the tag, before publishing.
 3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. The tag build checks that the tag, `pluginVersion` and `CHANGELOG.md` agree, publishes to the Marketplace with `PUBLISH_TOKEN`, then creates a GitHub Release with the zip.
-5. JetBrains reviews every new version before it goes live (hours to a day).
+5. A version with a suffix (`0.2.0-beta.1`, tag `v0.2.0-beta.1`) is a beta: it goes to the Marketplace `beta` channel and the GitHub Release is marked pre-release. Users must add the beta channel URL to see it; stable users do not. Promote by releasing the plain version.
+6. JetBrains reviews every new version before it goes live (hours to a day).
 
 Changes with no user-visible effect (docs, CI, refactors) do not need a release; leave them on `main`.

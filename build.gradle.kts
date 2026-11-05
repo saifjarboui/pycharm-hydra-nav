@@ -59,6 +59,8 @@ intellijPlatform {
     }
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
+        // A suffix like 0.2.0-beta.1 goes to the "beta" channel, so stable users never see it.
+        channels = listOf(if ("-" in version.toString()) "beta" else "default")
     }
     // Plugin Verifier against the IDE builds JetBrains recommends for our since/until range, so new releases are picked up automatically (CI runs it on release tags only).
     pluginVerification {
