@@ -32,12 +32,10 @@ intellijPlatform {
     instrumentCode = false // no GUI forms to instrument
     pluginConfiguration {
         ideaVersion { sinceBuild = "262" }
-        // Shown on Marketplace's "What's New" tab. Add a line per release.
-        changeNotes = """
-            <b>0.1.2</b> Adds release notes.<br/>
-            <b>0.1.1</b> Demo GIFs in the description and README.<br/>
-            <b>0.1.0</b> Navigation and completion for Hydra <code>defaults:</code>, <code>_target_</code> and <code>${'$'}{...}</code>.
-        """.trimIndent()
+        // Marketplace "What's New" = CHANGELOG.md (one line per release; **bold** and `code` only).
+        changeNotes = file("CHANGELOG.md").readLines().filter { it.isNotBlank() }.joinToString("<br/>") {
+            it.replace(Regex("\\*\\*(.+?)\\*\\*"), "<b>$1</b>").replace(Regex("`(.+?)`"), "<code>$1</code>")
+        }
     }
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
