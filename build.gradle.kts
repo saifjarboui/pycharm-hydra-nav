@@ -1,4 +1,12 @@
+import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
+import org.intellij.markdown.html.HtmlGenerator
+import org.intellij.markdown.parser.MarkdownParser
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath("org.jetbrains:markdown:0.7.3") } // README -> Marketplace description
+}
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.21"
@@ -32,6 +40,14 @@ intellijPlatform {
     instrumentCode = false // no GUI forms to instrument
     pluginConfiguration {
         ideaVersion { sinceBuild = "262" }
+        // Marketplace description = README between the "Plugin description" markers, images made absolute.
+        description = file("README.md").readText().substringAfter("<!-- Plugin description -->")
+            .substringBefore("<!-- Plugin description end -->").trim().let {
+                val md = it.replace("](docs/", "](https://raw.githubusercontent.com/saifjarboui/pycharm-hydra-nav/main/docs/")
+                val flavour = GFMFlavourDescriptor()
+                HtmlGenerator(md, MarkdownParser(flavour).buildMarkdownTreeFromString(md), flavour).generateHtml()
+                    .removePrefix("<body>").removeSuffix("</body>")
+            }
         // Marketplace "What's New" = CHANGELOG.md (one line per release; **bold** and `code` only).
         changeNotes = file("CHANGELOG.md").readLines().filter { it.isNotBlank() }.joinToString("<br/>") {
             it.replace(Regex("\\*\\*(.+?)\\*\\*"), "<b>$1</b>").replace(Regex("`(.+?)`"), "<code>$1</code>")

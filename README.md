@@ -1,5 +1,6 @@
 # Hydra Defaults Navigation (PyCharm plugin)
 
+<!-- Plugin description -->
 ![defaults navigation](docs/img/defaults.gif)
 
 Cmd/Ctrl+click on a Hydra `defaults:` entry opens its file:
@@ -55,6 +56,9 @@ These also pop up while you type:
 
 The `_target_` suggestions look up the Python code on each keystroke in that block. PyCharm caches the lookup.
 
+Code > HydraNav: Hide Comments and Docs (also in the editor's right-click menu) toggles folding of every comment and Python docstring in the current editor. A green check shows next to it while they're hidden. Bind a shortcut to it in Keymap if you want one.
+<!-- Plugin description end -->
+
 ## Build and install
 
 ```bash
@@ -67,5 +71,3 @@ Then in PyCharm: Settings → Plugins → ⚙ → Install Plugin from Disk… �
 `./gradlew runIde` opens a test PyCharm with the plugin loaded.
 
 The build uses the PyCharm installed at `pycharmPath` (`gradle.properties`). Point that at another install to build against it.
-
-Code > HydraNav: Hide Comments and Docs (also in the editor's right-click menu) toggles folding of every comment and Python docstring in the current editor. A green check shows next to it while they're hidden. Bind a shortcut to it in Keymap if you want one.

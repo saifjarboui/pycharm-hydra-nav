@@ -2,20 +2,6 @@
     <id>hydranav</id>
     <name>Hydra Defaults Navigation</name>
     <vendor>Saifeddine Jarboui</vendor>
-    <description><![CDATA[
-        <img src="https://raw.githubusercontent.com/saifjarboui/pycharm-hydra-nav/main/docs/img/target.gif" width="800"/>
-        <br/>
-        Cmd/Ctrl+click on a Hydra <code>defaults:</code> entry such as <code>- model: base</code>
-        opens <code>&lt;config root&gt;/model/base.yaml</code>. Handles <code>override</code>,
-        <code>optional</code>, absolute <code>/group</code> keys, <code>group@package</code> and
-        bare <code>- other_config</code> entries. Renaming the target file updates the entry.
-        Cmd/Ctrl+click on a <code>_target_: pkg.module.Class</code> segment opens that package, module or class.
-        Cmd/Ctrl+click on <code>${data.image_size}</code> opens the <code>image_size</code> key of each <code>data</code> option.
-        Cmd/Ctrl+click on a key beside <code>_target_</code> opens that <code>__init__</code> parameter.
-        Completes defaults options and group keys, <code>_target_</code> paths (including methods),
-        <code>__init__</code> argument names and values (<code>Literal</code>, <code>bool</code>, defaults), and
-        <code>${...}</code> keys.
-    ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.plugins.yaml</depends>
