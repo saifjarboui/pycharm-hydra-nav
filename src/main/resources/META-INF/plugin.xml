@@ -3,6 +3,8 @@
     <name>Hydra Defaults Navigation</name>
     <vendor>Saifeddine Jarboui</vendor>
     <description><![CDATA[
+        <img src="https://raw.githubusercontent.com/saifjarboui/pycharm-hydra-nav/main/docs/img/target.gif" width="800"/>
+        <br/>
         Cmd/Ctrl+click on a Hydra <code>defaults:</code> entry such as <code>- model: base</code>
         opens <code>&lt;config root&gt;/model/base.yaml</code>. Handles <code>override</code>,
         <code>optional</code>, absolute <code>/group</code> keys, <code>group@package</code> and

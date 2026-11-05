@@ -1,5 +1,7 @@
 # Hydra Defaults Navigation (PyCharm plugin)
 
+![defaults navigation](docs/img/defaults.gif)
+
 Cmd/Ctrl+click on a Hydra `defaults:` entry opens its file:
 
 ```yaml
@@ -12,6 +14,8 @@ defaults:
 
 The plugin looks for `<group>/<option>.yaml` in the current file's folder, then in each folder above it, and opens the first match. It needs no setting. Renaming the target file updates the entry.
 
+![_target_ navigation](docs/img/target.gif)
+
 Cmd/Ctrl+click on a `_target_` opens the Python code it names, one dotted segment at a time:
 
 ```yaml
@@ -20,6 +24,8 @@ _target_: src.models.resnet.ResNetClassifier.from_config   # a method or nested 
 ```
 
 PyCharm's own import resolver does the lookup, so re-exports like `torch.optim.Adam` and installed packages work too. Renaming the class or module updates the entry.
+
+![interpolation navigation](docs/img/interpolation.gif)
 
 Cmd/Ctrl+click on an interpolation opens the key it reads:
 
@@ -38,6 +44,8 @@ lr: 1e-4          # → the `lr` parameter of ResNetClassifier.__init__
 ```
 
 Ctrl+Space completes `defaults:` options (the `*.yaml` files of the group), `_target_` paths (packages, modules, classes, methods) and `${...}` keys.
+
+![argument completion and jump to __init__](docs/img/completion.gif)
 
 These also pop up while you type:
 
