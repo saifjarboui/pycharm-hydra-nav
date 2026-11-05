@@ -20,8 +20,8 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         myFixture.addFileToProject("configs/model/tiny.yaml", "dim: 96\n")
-        myFixture.addFileToProject("configs/data/natl.yaml", "tile: 256\n")
-        myFixture.addFileToProject("configs/data/base.yaml", "tile: 128\n")
+        myFixture.addFileToProject("configs/data/cifar10.yaml", "image_size: 256\n")
+        myFixture.addFileToProject("configs/data/base.yaml", "image_size: 128\n")
     }
 
     fun testGroupOption() =
@@ -33,10 +33,10 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
     )
 
     fun testPackageSuffix() =
-        assertEquals("data/natl.yaml", resolvesTo("configs/train.yaml", "defaults:\n  - data@ocean: natl\n", "natl"))
+        assertEquals("data/cifar10.yaml", resolvesTo("configs/train.yaml", "defaults:\n  - data@eval: cifar10\n", "cifar10"))
 
     fun testBareEntryReadsOwnFolder() =
-        assertEquals("data/base.yaml", resolvesTo("configs/data/natl2.yaml", "defaults:\n  - base\n", "base"))
+        assertEquals("data/base.yaml", resolvesTo("configs/data/imagenet.yaml", "defaults:\n  - base\n", "base"))
 
     fun testMissingOptionalIsUnresolved() =
         assertNull(resolvesTo("configs/train.yaml", "defaults:\n  - optional local: default\n", "default"))
@@ -48,12 +48,12 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
     }
 
     private fun target(value: String, word: String, key: String = "_target_") = myFixture.run {
-        addFileToProject("pkg/__init__.py", "from pkg.models.sentinel3mae import Sentinel3MAELitModule\n")
+        addFileToProject("pkg/__init__.py", "from pkg.models.resnet import ResNetClassifier\n")
         addFileToProject("pkg/models/__init__.py", "")
         addFileToProject(
-            "pkg/models/sentinel3mae.py",
+            "pkg/models/resnet.py",
             "from typing import Literal, Optional\n" +
-                "class Sentinel3MAELitModule:\n    def __init__(self, lr: float, depth=4, **kw):\n        pass\n" +
+                "class ResNetClassifier:\n    def __init__(self, lr: float, depth=4, **kw):\n        pass\n" +
                 "    @classmethod\n    def from_config(cls, path: str, mode: Literal['fast', 'slow'] = 'fast', " +
                 "strict: bool = True, seed: Optional[int] = None):\n        pass\n",
         )
@@ -61,21 +61,21 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
     }
 
     fun testTargetClass() {
-        val cls = target("pkg.models.sentinel3mae.Sentinel3MAELitModule", "Sentinel3MAELitModule")?.resolve()
-        assertEquals("Sentinel3MAELitModule", (cls as? PyClass)?.name)
+        val cls = target("pkg.models.resnet.ResNetClassifier", "ResNetClassifier")?.resolve()
+        assertEquals("ResNetClassifier", (cls as? PyClass)?.name)
     }
 
     fun testTargetModule() {
-        val module = target("pkg.models.sentinel3mae.Sentinel3MAELitModule", "sentinel3mae")?.resolve()
-        assertEquals("sentinel3mae.py", (module as? PyFile)?.name)
+        val module = target("pkg.models.resnet.ResNetClassifier", "resnet")?.resolve()
+        assertEquals("resnet.py", (module as? PyFile)?.name)
     }
 
     fun testTargetReExport() {
-        val cls = target("pkg.Sentinel3MAELitModule", "Sentinel3MAELitModule")?.resolve()
-        assertEquals("Sentinel3MAELitModule", (cls as? PyClass)?.name)
+        val cls = target("pkg.ResNetClassifier", "ResNetClassifier")?.resolve()
+        assertEquals("ResNetClassifier", (cls as? PyClass)?.name)
     }
 
-    fun testNotATarget() = assertNull(target("pkg.models.sentinel3mae", "sentinel3mae", key = "path"))
+    fun testNotATarget() = assertNull(target("pkg.models.resnet", "resnet", key = "path"))
 
     /** `file:key` of every target of the interpolation reference at [word]. */
     private fun interpolates(path: String, text: String, word: String): List<String> =
@@ -83,8 +83,8 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
             .map { (it.element as YAMLKeyValue).let { kv -> "${kv.containingFile.name}:${kv.keyText}" } }.sorted()
 
     fun testInterpolationGroupKeyOffersEveryOption() = assertEquals(
-        listOf("base.yaml:tile", "natl.yaml:tile"),
-        interpolates("configs/model/m.yaml", "img_size: \${data.tile}\n", "data.tile"),
+        listOf("base.yaml:image_size", "cifar10.yaml:image_size"),
+        interpolates("configs/model/m.yaml", "img_size: \${data.image_size}\n", "data.image_size"),
     )
 
     fun testInterpolationPrimaryConfigKey() {
@@ -103,27 +103,27 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
     }
 
     fun testKwargResolvesToInitParameter() {
-        target("pkg.models.sentinel3mae.Sentinel3MAELitModule", "x")
-        val text = "net:\n  _target_: pkg.models.sentinel3mae.Sentinel3MAELitModule\n  lr: 0.1\n"
+        target("pkg.models.resnet.ResNetClassifier", "x")
+        val text = "net:\n  _target_: pkg.models.resnet.ResNetClassifier\n  lr: 0.1\n"
         val param = refAt("configs/model/k.yaml", text, "lr")?.resolve()
         assertEquals("lr", (param as? PyNamedParameter)?.name)
         assertNull(refAt("configs/model/k2.yaml", "net:\n  lr: 0.1\n", "lr"))
     }
 
     fun testRenameParameterUpdatesKwarg() {
-        target("pkg.models.sentinel3mae.Sentinel3MAELitModule", "x")
-        val yaml = myFixture.addFileToProject("configs/model/k.yaml", "_target_: pkg.models.sentinel3mae.Sentinel3MAELitModule\nlr: 0.1\n")
+        target("pkg.models.resnet.ResNetClassifier", "x")
+        val yaml = myFixture.addFileToProject("configs/model/k.yaml", "_target_: pkg.models.resnet.ResNetClassifier\nlr: 0.1\n")
         val param = yaml.findReferenceAt(yaml.text.indexOf("lr"))!!.resolve()!!
         myFixture.renameElement(param, "learning_rate")
         assertTrue(yaml.text, "learning_rate: 0.1" in yaml.text)
     }
 
     fun testTargetDocShowsDocstring() {
-        val ref = target("pkg.models.sentinel3mae.Sentinel3MAELitModule", "Sentinel3MAELitModule")!!
+        val ref = target("pkg.models.resnet.ResNetClassifier", "ResNetClassifier")!!
         val cls = ref.resolve()!!
         val original = ref.element.containingFile.findElementAt(ref.element.textRange.startOffset + ref.rangeInElement.startOffset)
         val doc = DocumentationManager.getProviderFromElement(cls, original).generateDoc(cls, original)
-        assertTrue(doc, doc!!.contains("Sentinel3MAELitModule") && "pkg.models.sentinel3mae" in doc)
+        assertTrue(doc, doc!!.contains("ResNetClassifier") && "pkg.models.resnet" in doc)
     }
 
     /** [invocationCount] 0 is the popup while typing, 1 is Ctrl+Space. */
@@ -134,26 +134,26 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
     }
 
     fun testCompleteDefaultsOption() =
-        assertSameElements(complete("configs/train.yaml", "defaults:\n  - data: <caret>\n"), "natl", "base")
+        assertSameElements(complete("configs/train.yaml", "defaults:\n  - data: <caret>\n"), "cifar10", "base")
 
     fun testCompleteTargetModule() {
-        target("pkg.models.sentinel3mae.Sentinel3MAELitModule", "x")
-        assertContainsElements(complete("configs/model/t.yaml", "_target_: pkg.models.<caret>\n"), "sentinel3mae")
+        target("pkg.models.resnet.ResNetClassifier", "x")
+        assertContainsElements(complete("configs/model/t.yaml", "_target_: pkg.models.<caret>\n"), "resnet")
     }
 
     fun testCompleteInterpolationKey() {
         complete("configs/model/i.yaml", "img: \${data.<caret>}\n") // the only candidate is inserted directly
-        myFixture.checkResult("img: \${data.tile}\n")
+        myFixture.checkResult("img: \${data.image_size}\n")
     }
 
     fun testCompleteKwargs() {
-        target("pkg.models.sentinel3mae.Sentinel3MAELitModule", "x")
-        val keys = complete("configs/model/c.yaml", "_target_: pkg.models.sentinel3mae.Sentinel3MAELitModule\nlr: 1\n<caret>\n")
+        target("pkg.models.resnet.ResNetClassifier", "x")
+        val keys = complete("configs/model/c.yaml", "_target_: pkg.models.resnet.ResNetClassifier\nlr: 1\n<caret>\n")
         assertContainsElements(keys, "depth: ", "_partial_: ")
         assertDoesntContain(keys, "lr: ", "self: ", "kw: ")
     }
 
-    private val method = "pkg.models.sentinel3mae.Sentinel3MAELitModule.from_config"
+    private val method = "pkg.models.resnet.ResNetClassifier.from_config"
 
     fun testTargetClassMethod() {
         val fn = target(method, "from_config")?.resolve()

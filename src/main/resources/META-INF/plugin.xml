@@ -8,7 +8,7 @@
         <code>optional</code>, absolute <code>/group</code> keys, <code>group@package</code> and
         bare <code>- other_config</code> entries. Renaming the target file updates the entry.
         Cmd/Ctrl+click on a <code>_target_: pkg.module.Class</code> segment opens that package, module or class.
-        Cmd/Ctrl+click on <code>${data.tile_size}</code> opens the <code>tile_size</code> key of each <code>data</code> option.
+        Cmd/Ctrl+click on <code>${data.image_size}</code> opens the <code>image_size</code> key of each <code>data</code> option.
         Cmd/Ctrl+click on a key beside <code>_target_</code> opens that <code>__init__</code> parameter.
         Completes defaults options and group keys, <code>_target_</code> paths (including methods),
         <code>__init__</code> argument names and values (<code>Literal</code>, <code>bool</code>, defaults), and

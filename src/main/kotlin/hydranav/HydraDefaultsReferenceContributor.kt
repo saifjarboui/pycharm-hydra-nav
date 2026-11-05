@@ -63,10 +63,10 @@ private fun interpolationReferences(scalar: YAMLScalar): Array<PsiReference>? {
 }
 
 /**
- * `${data.tile_size}` → every `tile_size:` that can fill it. Which `data` option is used is only known at run time,
+ * `${data.image_size}` → every `image_size:` that can fill it. Which `data` option is used is only known at run time,
  * so all candidates are offered and the IDE shows a chooser when there are several. Going up from the file's
- * folder, the nearest level with a match wins. At each level it checks the key path `data.tile_size` in the YAML
- * files there, and `tile_size` in each YAML file of the `data` folder.
+ * folder, the nearest level with a match wins. At each level it checks the key path `data.image_size` in the YAML
+ * files there, and `image_size` in each YAML file of the `data` folder.
  * ponytail: relative `${..x}`, nested groups, `# @package` remapping and rename are not handled.
  */
 private class HydraInterpolationReference(scalar: YAMLScalar, range: TextRange, private val path: List<String>) :
