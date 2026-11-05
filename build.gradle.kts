@@ -32,6 +32,12 @@ intellijPlatform {
     instrumentCode = false // no GUI forms to instrument
     pluginConfiguration {
         ideaVersion { sinceBuild = "262" }
+        // Shown on Marketplace's "What's New" tab. Add a line per release.
+        changeNotes = """
+            <b>0.1.2</b> Adds release notes.<br/>
+            <b>0.1.1</b> Demo GIFs in the description and README.<br/>
+            <b>0.1.0</b> Navigation and completion for Hydra <code>defaults:</code>, <code>_target_</code> and <code>${'$'}{...}</code>.
+        """.trimIndent()
     }
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
