@@ -10,3 +10,4 @@ The plugin runs inside PyCharm all day, often on a laptop. It must cost nothing 
 - Do resolution only in `resolve()`, which runs on click, hover or rename. Use the platform's cached resolvers (`PyPsiFacade`, VFS lookups) and never walk the whole tree.
 - References stay soft, so the unresolved-reference highlighting never calls `resolve()` on every line.
 - No inspections, annotators or line markers that resolve on each keystroke, unless the user asks for one. Mention the battery cost when they do.
+- Exception the user asked for: `HydraKwargCompletionContributor` runs in the typing popup, and resolves the `_target_` only for a key or value inside a `_target_` block.

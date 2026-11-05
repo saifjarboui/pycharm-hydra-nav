@@ -141,6 +141,7 @@ private class HydraTargetReference(scalar: YAMLScalar, range: TextRange, private
         } else when (val parent = resolveTarget(element, names.dropLast(1))) {
             is PsiDirectory -> listOf(parent) to parent.findFile("__init__.py") as? PyFile
             is PyFile -> emptyList<PsiDirectory>() to parent
+            is PyClass -> return parent.methods.mapNotNull { it.name }.filterNot { it.startsWith("_") }.toTypedArray()
             else -> return emptyArray()
         }
         val modules = dirs.flatMap { d ->
@@ -157,13 +158,14 @@ private class HydraTargetReference(scalar: YAMLScalar, range: TextRange, private
         super.handleElementRename(newElementName.removeSuffix(".py"))
 }
 
-// ponytail: class members (`pkg.Foo.from_config`) are not resolved; add PyClass.findMethodByName when needed.
+/** `a.b.c` → package, module, class, or a method or nested class of a class (`pkg.Foo.from_config`). */
 private fun resolveTarget(foothold: PsiElement, names: List<String>): PsiElement? {
     val facade = PyPsiFacade.getInstance(foothold.project)
     facade.resolveQualifiedName(QualifiedName.fromComponents(names), facade.createResolveContextFromFoothold(foothold))
         .firstOrNull()?.let { return it }
     if (names.size < 2) return null
     val module = when (val parent = resolveTarget(foothold, names.dropLast(1))) {
+        is PyClass -> return parent.findMethodByName(names.last(), true, null) ?: parent.findNestedClass(names.last(), true)
         is PyFile -> parent
         is PsiDirectory -> parent.findFile("__init__.py") as? PyFile
         else -> null
@@ -270,7 +272,7 @@ internal fun targetNames(mapping: YAMLMapping): List<String>? {
     return value.split('.').takeIf { names -> names.none { it.isBlank() || "\${" in it } }
 }
 
-/** The function a `_target_` calls: the class's `__init__`, or the function itself. */
+/** The function a `_target_` calls: the class's `__init__`, or the function or method itself. */
 internal fun targetCallable(mapping: YAMLMapping): PyFunction? {
     val names = targetNames(mapping) ?: return null
     return when (val target = resolveTarget(mapping, names)) {
@@ -280,7 +282,14 @@ internal fun targetCallable(mapping: YAMLMapping): PyFunction? {
     }
 }
 
-/** Ctrl+Space on a new key in a `_target_` block: the parameters not set yet, then Hydra's own `_partial_` & co. */
+/**
+ * Completion while typing or on Ctrl+Space:
+ * - a group key on a `defaults:` line (`- override /mo` → `model: `),
+ * - a new key in a `_target_` block: the parameters not set yet, then Hydra's own `_partial_` & co,
+ * - the value of such a key: the parameter's `Literal` values, `true`/`false`, `null`, and its default.
+ * ponytail: the `_target_` cases resolve Python on each keystroke there (cached by PyCharm); gate on
+ * `parameters.invocationCount == 0` to go back to Ctrl+Space only.
+ */
 class HydraKwargCompletionContributor : com.intellij.codeInsight.completion.CompletionContributor() {
     override fun beforeCompletion(context: com.intellij.codeInsight.completion.CompletionInitializationContext) {
         // the default dummy ends in a space, which breaks the `${...}` match and `getVariants` above
@@ -291,12 +300,27 @@ class HydraKwargCompletionContributor : com.intellij.codeInsight.completion.Comp
         parameters: com.intellij.codeInsight.completion.CompletionParameters,
         result: com.intellij.codeInsight.completion.CompletionResultSet,
     ) {
-        if (parameters.invocationCount == 0) return // never on the typing auto-popup: it resolves Python
         val position = parameters.position
         val document = parameters.editor.document
         val lineStart = document.getLineStartOffset(document.getLineNumber(parameters.offset))
         val typed = document.charsSequence.subSequence(lineStart, parameters.offset)
-        if (!typed.matches(Regex("""\s*\w*"""))) return // a key at the start of its line, not a value
+        DEFAULTS_KEY.matchEntire(typed)?.let { match ->
+            if (!inDefaults(position)) return
+            val file = parameters.originalFile.virtualFile ?: return
+            val groups = result.withPrefixMatcher(match.groupValues[1])
+            configGroups(file, position).forEach { groups.addElement(LookupElementBuilder.create("$it: ").withPresentableText(it)) }
+            return
+        }
+        if (typed.matches(Regex("""\s*\w*"""))) return completeKeys(position, result) // a key at the start of its line
+        val keyValue = position.parent?.parent as? YAMLKeyValue ?: return
+        if (keyValue.value != position.parent) return
+        val mapping = keyValue.parent as? YAMLMapping ?: return
+        val param = targetCallable(mapping)?.parameterList?.findParameterByName(keyValue.keyText) as? PyNamedParameter ?: return
+        (annotationValues(param.annotationValue.orEmpty()) + listOfNotNull(param.defaultValueText?.let(::yamlValue)))
+            .distinct().forEach { result.addElement(LookupElementBuilder.create(it)) }
+    }
+
+    private fun completeKeys(position: PsiElement, result: com.intellij.codeInsight.completion.CompletionResultSet) {
         val mapping = generateSequence(position) { it.parent }.filterIsInstance<YAMLMapping>()
             .firstOrNull { targetNames(it) != null } ?: return
         val taken = mapping.keyValues.map { it.keyText }.toSet()
@@ -306,4 +330,38 @@ class HydraKwargCompletionContributor : com.intellij.codeInsight.completion.Comp
             result.addElement(LookupElementBuilder.create("$it: ").withPresentableText(it))
         }
     }
+}
+
+/** `  - override /mo` on a `defaults:` line: group 1 is the group typed so far. */
+private val DEFAULTS_KEY = Regex("""\s*-\s*(?:(?:override|optional)\s+)*/?(\w*)""")
+
+private fun inDefaults(position: PsiElement): Boolean = generateSequence(position) { it.parent }.filterIsInstance<YAMLKeyValue>()
+    .any { it.keyText == "defaults" && it.parent?.parent is YAMLDocument }
+
+/**
+ * The folders holding YAML at the nearest level above [file] that has any: the config groups.
+ * ponytail: a file in a leaf group (`experiment/x.yaml`) gets the root groups; nested groups (`model/encoder`) only from `model/`.
+ */
+private fun configGroups(file: VirtualFile, foothold: PsiElement): List<String> {
+    val index = ProjectFileIndex.getInstance(foothold.project)
+    return generateSequence(file.parent) { it.parent }.takeWhile { index.isInContent(it) }
+        .map { dir -> dir.children.filter { d -> d.isDirectory && d.children.any { it.extension == "yaml" || it.extension == "yml" } }.map { it.name } }
+        .firstOrNull { it.isNotEmpty() }.orEmpty()
+}
+
+/**
+ * The YAML values an annotation allows: `Literal['a', 'b']` → a, b; `bool` → true, false; `Optional`/`None` → null.
+ * ponytail: reads the annotation text, so it works without a Python SDK; type aliases and `Enum` members are skipped.
+ */
+private fun annotationValues(annotation: String): List<String> =
+    Regex("""Literal\[([^\]]*)]""").findAll(annotation).flatMap { it.groupValues[1].split(',') }.map { yamlValue(it.trim()) }.toList() +
+        (if (Regex("""\bbool\b""").containsMatchIn(annotation)) listOf("true", "false") else emptyList()) +
+        (if (Regex("""\bOptional\[|\bNone\b""").containsMatchIn(annotation)) listOf("null") else emptyList())
+
+/** A Python literal as YAML: `None` → `null`, `True` → `true`, `'adam'` → `adam`. */
+private fun yamlValue(python: String): String = when (python) {
+    "None" -> "null"
+    "True" -> "true"
+    "False" -> "false"
+    else -> python.removeSurrounding("\"").removeSurrounding("'")
 }

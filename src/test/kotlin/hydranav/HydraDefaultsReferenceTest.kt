@@ -50,7 +50,13 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
     private fun target(value: String, word: String, key: String = "_target_") = myFixture.run {
         addFileToProject("pkg/__init__.py", "from pkg.models.sentinel3mae import Sentinel3MAELitModule\n")
         addFileToProject("pkg/models/__init__.py", "")
-        addFileToProject("pkg/models/sentinel3mae.py", "class Sentinel3MAELitModule:\n    def __init__(self, lr: float, depth=4, **kw):\n        pass\n")
+        addFileToProject(
+            "pkg/models/sentinel3mae.py",
+            "from typing import Literal, Optional\n" +
+                "class Sentinel3MAELitModule:\n    def __init__(self, lr: float, depth=4, **kw):\n        pass\n" +
+                "    @classmethod\n    def from_config(cls, path: str, mode: Literal['fast', 'slow'] = 'fast', " +
+                "strict: bool = True, seed: Optional[int] = None):\n        pass\n",
+        )
         refAt("configs/model/m.yaml", "net:\n  $key: $value\n", word)
     }
 
@@ -120,9 +126,10 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
         assertTrue(doc, doc!!.contains("Sentinel3MAELitModule") && "pkg.models.sentinel3mae" in doc)
     }
 
-    private fun complete(path: String, text: String): List<String> {
+    /** [invocationCount] 0 is the popup while typing, 1 is Ctrl+Space. */
+    private fun complete(path: String, text: String, invocationCount: Int = 1): List<String> {
         myFixture.configureFromTempProjectFile(myFixture.addFileToProject(path, text).virtualFile.path.substringAfter("/src/"))
-        myFixture.completeBasic()
+        myFixture.complete(com.intellij.codeInsight.completion.CompletionType.BASIC, invocationCount)
         return myFixture.lookupElementStrings.orEmpty()
     }
 
@@ -144,5 +151,32 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
         val keys = complete("configs/model/c.yaml", "_target_: pkg.models.sentinel3mae.Sentinel3MAELitModule\nlr: 1\n<caret>\n")
         assertContainsElements(keys, "depth: ", "_partial_: ")
         assertDoesntContain(keys, "lr: ", "self: ", "kw: ")
+    }
+
+    private val method = "pkg.models.sentinel3mae.Sentinel3MAELitModule.from_config"
+
+    fun testTargetClassMethod() {
+        val fn = target(method, "from_config")?.resolve()
+        assertEquals("from_config", (fn as? com.jetbrains.python.psi.PyFunction)?.name)
+    }
+
+    fun testCompleteMethodKwargsWhileTyping() {
+        target(method, "x")
+        val keys = complete("configs/model/w.yaml", "_target_: $method\npath: x\ns<caret>\n", invocationCount = 0)
+        assertContainsElements(keys, "strict: ", "seed: ")
+        assertDoesntContain(keys, "path: ", "cls: ")
+    }
+
+    fun testCompleteKwargValues() {
+        target(method, "x")
+        assertSameElements(complete("configs/model/v1.yaml", "_target_: $method\nmode: <caret>\n"), "fast", "slow")
+        assertSameElements(complete("configs/model/v2.yaml", "_target_: $method\nstrict: <caret>\n"), "true", "false")
+        assertContainsElements(complete("configs/model/v3.yaml", "_target_: $method\nseed: <caret>\n"), "null")
+    }
+
+    fun testCompleteDefaultsGroup() {
+        assertContainsElements(complete("configs/train.yaml", "defaults:\n  - <caret>\n"), "model: ", "data: ")
+        complete("configs/experiment/p.yaml", "defaults:\n  - override /mo<caret>\n") // the only candidate is inserted directly
+        myFixture.checkResult("defaults:\n  - override /model: <caret>\n")
     }
 }

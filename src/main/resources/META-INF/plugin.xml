@@ -10,7 +10,8 @@
         Cmd/Ctrl+click on a <code>_target_: pkg.module.Class</code> segment opens that package, module or class.
         Cmd/Ctrl+click on <code>${data.tile_size}</code> opens the <code>tile_size</code> key of each <code>data</code> option.
         Cmd/Ctrl+click on a key beside <code>_target_</code> opens that <code>__init__</code> parameter.
-        Ctrl+Space completes defaults options, <code>_target_</code> paths, <code>__init__</code> arguments and
+        Completes defaults options and group keys, <code>_target_</code> paths (including methods),
+        <code>__init__</code> argument names and values (<code>Literal</code>, <code>bool</code>, defaults), and
         <code>${...}</code> keys.
     ]]></description>
 

@@ -16,6 +16,7 @@ Cmd/Ctrl+click on a `_target_` opens the Python code it names, one dotted segmen
 
 ```yaml
 _target_: src.models.sentinel3mae.Sentinel3MAELitModule   # click the class → the class, `sentinel3mae` → the module
+_target_: src.models.sentinel3mae.Sentinel3MAELitModule.from_config   # a method or nested class works too
 ```
 
 PyCharm's own import resolver does the lookup, so re-exports like `torch.optim.Adam` and installed packages work too. Renaming the class or module updates the entry.
@@ -36,7 +37,15 @@ _target_: src.models.sentinel3mae.Sentinel3MAELitModule
 lr: 1e-4          # → the `lr` parameter of Sentinel3MAELitModule.__init__
 ```
 
-Ctrl+Space completes `defaults:` options (the `*.yaml` files of the group), `_target_` paths (packages, modules, classes), `${...}` keys, and, on a new key in a `_target_` block, the `__init__` parameters not set yet plus `_partial_`, `_recursive_` and `_convert_`. Argument completion runs only on Ctrl+Space, never in the popup while typing.
+Ctrl+Space completes `defaults:` options (the `*.yaml` files of the group), `_target_` paths (packages, modules, classes, methods) and `${...}` keys.
+
+These also pop up while you type:
+
+- On a `defaults:` line, the group keys (`- mo` or `- override /mo` → `model: `), from the group folders next to the config.
+- On a new key in a `_target_` block, the parameters not set yet (of `__init__`, or of the method), plus `_partial_`, `_recursive_` and `_convert_`.
+- On the value of such a key, the parameter's `Literal[...]` values, `true`/`false` for `bool`, `null` for `Optional`, and its default.
+
+The `_target_` suggestions look up the Python code on each keystroke in that block. PyCharm caches the lookup.
 
 ## Build and install
 
