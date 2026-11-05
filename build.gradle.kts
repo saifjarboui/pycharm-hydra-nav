@@ -6,7 +6,7 @@ import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 
 buildscript {
     repositories { mavenCentral() }
-    dependencies { classpath("org.jetbrains:markdown:0.7.3") } // README -> Marketplace description
+    dependencies { classpath("org.jetbrains:markdown:0.7.18") } // README -> Marketplace description
 }
 
 plugins {
