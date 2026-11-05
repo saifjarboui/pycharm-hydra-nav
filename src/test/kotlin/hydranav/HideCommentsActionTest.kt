@@ -41,10 +41,35 @@ class HideCommentsActionTest : BasePlatformTestCase() {
         assertTrue(hiddenText().isEmpty())
     }
 
-    fun testYamlComment() {
+    // After a restart the IDE restores our collapsed folds, but the plugin has no memory of them.
+    fun testRestoredFoldsAreShown() {
+        myFixture.configureByText("a.yaml", "# note\nkey: 1\n")
+        val fm = myFixture.editor.foldingModel
+        fm.runBatchFoldingOperation { fm.addFoldRegion(0, 7, "")!!.isExpanded = false }
+        assertEquals(1, hiddenText().size)
+        toggle()
+        assertTrue(hiddenText().isEmpty())
+    }
+
+    fun testProjectCloseShowsComments() {
         myFixture.configureByText("a.yaml", "# note\nkey: 1\n")
         toggle()
+        ShowCommentsOnProjectClose().projectClosingBeforeSave(project)
+        assertTrue(hiddenText().isEmpty())
+    }
+
+    fun testYamlComment() {
+        myFixture.configureByText("a.yaml", "# note\nkey: 1\n")
+        val e = com.intellij.testFramework.TestActionEvent.createTestEvent(
+            com.intellij.openapi.actionSystem.impl.SimpleDataContext.getSimpleContext(
+                com.intellij.openapi.actionSystem.CommonDataKeys.EDITOR, myFixture.editor,
+            ),
+        )
+        val action = HideCommentsAction()
+        assertFalse(action.isSelected(e))
+        toggle()
         assertEquals(listOf("# note\n"), hiddenText())
+        assertTrue(action.isSelected(e))
     }
 
     fun testYamlCommentAtEndOfBlock() {

@@ -1,15 +1,18 @@
 package hydranav
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.Toggleable
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.FoldRegion
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileEditor.TextEditor
-import com.intellij.openapi.project.DumbAwareAction
-import com.intellij.openapi.util.Key
+import com.intellij.openapi.project.DumbAwareToggleAction
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectCloseListener
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiComment
@@ -21,27 +24,28 @@ import com.jetbrains.python.psi.PyDocStringOwner
 import com.jetbrains.python.psi.PyFile
 import com.jetbrains.python.psi.PyFunction
 
-private val FOLDS = Key.create<List<FoldRegion>>("hydranav.hiddenComments")
-
 /** Toggles folding of every comment and Python docstring in the editor. Runs only when invoked. */
-class HideCommentsAction : DumbAwareAction() {
+class HideCommentsAction : DumbAwareToggleAction() {
 
-    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+    // EDT: the fold model is read here; a cheap loop over folds, only while a menu is open.
+    override fun getActionUpdateThread() = ActionUpdateThread.EDT
 
     // Always visible: the macOS menu bar's context can lack the file, which used to hide the entry.
     override fun update(e: AnActionEvent) {
+        super.update(e)
         e.presentation.isEnabled = e.getData(CommonDataKeys.EDITOR) != null
+        e.presentation.icon = if (Toggleable.isSelected(e.presentation)) AllIcons.General.InspectionsOK else null
     }
 
-    override fun actionPerformed(e: AnActionEvent) {
+    override fun isSelected(e: AnActionEvent) =
+        e.getData(CommonDataKeys.EDITOR)?.foldingModel?.allFoldRegions?.any { it.isOurs() } == true
+
+    override fun setSelected(e: AnActionEvent, state: Boolean) {
         val editor = e.getData(CommonDataKeys.EDITOR) ?: return
+        if (!state) return editor.showHiddenComments()
         val project = e.project ?: return
         val file = e.getData(CommonDataKeys.PSI_FILE)
             ?: PsiDocumentManager.getInstance(project).getPsiFile(editor.document) ?: return
-        if (editor.getUserData(FOLDS) != null) {
-            editor.showHiddenComments()
-            return
-        }
         editor.foldingModel.runBatchFoldingOperation {
             run {
                 val docs = PsiTreeUtil.collectElementsOfType(file, PyDocStringOwner::class.java)
@@ -57,16 +61,27 @@ class HideCommentsAction : DumbAwareAction() {
                         }
                     }
                 regions.forEach { it.isExpanded = false }
-                editor.putUserData(FOLDS, regions)
             }
         }
     }
 }
 
+// Our folds are found by their empty placeholder, so ones the IDE restored from its saved state count too.
+// ponytail: another plugin's empty-placeholder folds would also be removed; tag regions if that ever happens.
+private fun FoldRegion.isOurs() = placeholderText.isEmpty()
+
 internal fun Editor.showHiddenComments() {
-    val hidden = getUserData(FOLDS) ?: return
+    val hidden = foldingModel.allFoldRegions.filter { it.isOurs() }
+    if (hidden.isEmpty()) return
     foldingModel.runBatchFoldingOperation { hidden.forEach { foldingModel.removeFoldRegion(it) } }
-    putUserData(FOLDS, null)
+}
+
+/** Shows comments again before the IDE saves editor state on exit, where no file-close event fires. */
+class ShowCommentsOnProjectClose : ProjectCloseListener {
+    override fun projectClosingBeforeSave(project: Project) {
+        FileEditorManager.getInstance(project).allEditors.filterIsInstance<TextEditor>()
+            .forEach { it.editor.showHiddenComments() }
+    }
 }
 
 /** Closing a file turns the feature off, so the IDE doesn't persist the hidden state and reopening shows the original. */

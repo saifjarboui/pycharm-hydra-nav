@@ -30,9 +30,14 @@
                   topic="com.intellij.openapi.fileEditor.FileEditorManagerListener$Before"/>
     </projectListeners>
 
+    <applicationListeners>
+        <listener class="hydranav.ShowCommentsOnProjectClose"
+                  topic="com.intellij.openapi.project.ProjectCloseListener"/>
+    </applicationListeners>
+
     <actions>
         <action id="hydranav.HideComments" class="hydranav.HideCommentsAction"
-                text="Hide Comments and Docs" description="Toggle folding of all comments and docstrings">
+                text="HydraNav: Hide Comments and Docs" description="Toggle folding of all comments and docstrings">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <add-to-group group-id="CodeMenu" anchor="last"/>
         </action>
