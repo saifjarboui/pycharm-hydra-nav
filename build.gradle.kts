@@ -1,7 +1,6 @@
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
-import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 
@@ -61,13 +60,9 @@ intellijPlatform {
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
     }
-    // Plugin Verifier against the oldest supported PyCharm, the middle line and the one we build against (CI runs it on release tags only).
+    // Plugin Verifier against the IDE builds JetBrains recommends for our since/until range, so new releases are picked up automatically (CI runs it on release tags only).
     pluginVerification {
-        ides {
-            create(IntelliJPlatformType.PyCharm, "2025.3.6.2")
-            create(IntelliJPlatformType.PyCharm, "2026.1.5.1")
-            create(IntelliJPlatformType.PyCharm, providers.gradleProperty("pycharmVersion").get())
-        }
+        ides { recommended() }
         failureLevel = listOf(
             VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
             VerifyPluginTask.FailureLevel.INTERNAL_API_USAGES,

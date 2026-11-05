@@ -25,7 +25,8 @@ The plugin runs in PyCharm all day, often on a laptop, so it must cost nothing w
 
 - Supported: PyCharm 2025.3 and newer (`sinceBuild = 253`, no `untilBuild`). Depend on the `PythonCore` plugin, not on `com.intellij.modules.python`.
 - Build against the newest PyCharm, but do not use API that is missing in the oldest supported one. Kotlin companion calls (such as `TypeEvalContext.codeInsightFallback`) can break older builds: check with the verifier.
-- `./gradlew verifyPlugin` runs the Plugin Verifier on the oldest supported PyCharm (2025.3.6.2), 2026.1.5.1 and `pycharmVersion`. CI runs it only on release tags, to save GitHub credits, so run it locally before tagging. It must stay green. When you raise or lower the range, update the IDE versions in `build.gradle.kts` and this file.
+- `./gradlew verifyPlugin` runs the Plugin Verifier on the PyCharm builds JetBrains recommends for our range (`recommended()`), so new releases are picked up automatically. CI runs it only on release tags, to save GitHub credits, so run it locally before tagging. It must stay green. When you raise or lower the range, update `sinceBuild` in `build.gradle.kts` and this file.
+- Newer PyCharm wins over older. If supporting a new version needs a code change that breaks the oldest supported one, make the change and drop the old version: raise `sinceBuild` in `build.gradle.kts` and this file. Do not add version-specific branches or compatibility shims.
 - Keep the plugin dynamic: no `restart`-requiring extensions, no static state that outlives an unload.
 
 ## Tests
