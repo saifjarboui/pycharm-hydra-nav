@@ -25,7 +25,7 @@ The plugin runs in PyCharm all day, often on a laptop, so it must cost nothing w
 
 - Supported: PyCharm 2025.3 and newer (`sinceBuild = 253`, no `untilBuild`). Depend on the `PythonCore` plugin, not on `com.intellij.modules.python`.
 - Build against the newest PyCharm, but do not use API that is missing in the oldest supported one. Kotlin companion calls (such as `TypeEvalContext.codeInsightFallback`) can break older builds: check with the verifier.
-- `./gradlew verifyPlugin` runs the Plugin Verifier on the oldest supported PyCharm and on `pycharmVersion`. CI runs it on every push. It must stay green. When you raise or lower the range, update the IDE versions in `build.gradle.kts` and this file.
+- `./gradlew verifyPlugin` runs the Plugin Verifier on the oldest supported PyCharm (2025.3.6.2), 2026.1.5.1 and `pycharmVersion`. CI runs it only on release tags, to save GitHub credits, so run it locally before tagging. It must stay green. When you raise or lower the range, update the IDE versions in `build.gradle.kts` and this file.
 - Keep the plugin dynamic: no `restart`-requiring extensions, no static state that outlives an unload.
 
 ## Tests
@@ -43,7 +43,7 @@ The plugin runs in PyCharm all day, often on a laptop, so it must cost nothing w
 ## Releasing
 
 1. Bump `pluginVersion` in `gradle.properties` and add a `**X.Y.Z**` line to the top of `CHANGELOG.md`.
-2. Merge to `main`; CI must pass (tests, build, Plugin Verifier).
+2. Merge to `main`; CI must pass (tests, build). The Plugin Verifier runs on the tag, before publishing.
 3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. The tag build checks that the tag, `pluginVersion` and `CHANGELOG.md` agree, publishes to the Marketplace with `PUBLISH_TOKEN`, then creates a GitHub Release with the zip.
 5. JetBrains reviews every new version before it goes live (hours to a day).

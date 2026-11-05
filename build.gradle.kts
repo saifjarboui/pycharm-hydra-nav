@@ -61,10 +61,11 @@ intellijPlatform {
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
     }
-    // Plugin Verifier against the oldest supported PyCharm and the one we build against.
+    // Plugin Verifier against the oldest supported PyCharm, the middle line and the one we build against (CI runs it on release tags only).
     pluginVerification {
         ides {
             create(IntelliJPlatformType.PyCharm, "2025.3.6.2")
+            create(IntelliJPlatformType.PyCharm, "2026.1.5.1")
             create(IntelliJPlatformType.PyCharm, providers.gradleProperty("pycharmVersion").get())
         }
         failureLevel = listOf(

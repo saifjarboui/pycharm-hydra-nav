@@ -4,11 +4,19 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
+
+# A newer push cancels the run it supersedes (never a release tag).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write # GitHub Release on tags
     steps:
@@ -27,12 +35,15 @@ jobs:
           grep -q "^\*\*$v\*\*" CHANGELOG.md || { echo "CHANGELOG.md has no **$v** line"; exit 1; }
       - name: Test and build
         run: ./gradlew test buildPlugin
+      # Downloads several IDEs, so only on release tags; the tag run stops before publishing if it fails.
       - name: Verify plugin (Plugin Verifier)
+        if: startsWith(github.ref, 'refs/tags/v')
         run: ./gradlew verifyPlugin
       - uses: actions/upload-artifact@v4
         with:
           name: plugin
           path: build/distributions/*.zip
+          retention-days: 3
       # Tag vX.Y.Z → upload that version to JetBrains Marketplace, then attach the zip to a GitHub Release.
       - name: Publish
         if: startsWith(github.ref, 'refs/tags/v')
