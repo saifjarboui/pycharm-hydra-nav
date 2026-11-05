@@ -13,7 +13,7 @@ jobs:
       contents: write # GitHub Release on tags
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 25
