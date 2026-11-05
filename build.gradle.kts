@@ -25,8 +25,11 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        // Local PyCharm when present (no download); CI downloads the same version instead.
+        // Local PyCharm when set (no download): -PpycharmPath or pycharmPath= in the gitignored local.properties.
+        // CI and fresh clones download pycharmVersion instead.
         val localIde = providers.gradleProperty("pycharmPath").orNull
+            ?: providers.fileContents(layout.projectDirectory.file("local.properties")).asText.orNull
+                ?.lineSequence()?.firstOrNull { it.startsWith("pycharmPath=") }?.substringAfter("=")?.trim()
         if (localIde != null && file(localIde).exists()) local(localIde)
         else pycharm(providers.gradleProperty("pycharmVersion"))
         bundledPlugin("org.jetbrains.plugins.yaml")
@@ -43,7 +46,7 @@ intellijPlatform {
     pluginConfiguration {
         ideaVersion { sinceBuild = "253" }
         // Marketplace description = README between the "Plugin description" markers, images made absolute.
-        description = file("README.md").readText().substringAfter("<!-- Plugin description -->")
+        description = providers.fileContents(layout.projectDirectory.file("README.md")).asText.get().substringAfter("<!-- Plugin description -->")
             .substringBefore("<!-- Plugin description end -->").trim().let {
                 val md = it.replace("](docs/", "](https://raw.githubusercontent.com/saifjarboui/pycharm-hydra-nav/main/docs/")
                 val flavour = GFMFlavourDescriptor()
@@ -51,7 +54,7 @@ intellijPlatform {
                     .removePrefix("<body>").removeSuffix("</body>")
             }
         // Marketplace "What's New" = CHANGELOG.md (one line per release; **bold** and `code` only).
-        changeNotes = file("CHANGELOG.md").readLines().filter { it.isNotBlank() }.joinToString("<br/>") {
+        changeNotes = providers.fileContents(layout.projectDirectory.file("CHANGELOG.md")).asText.get().lines().filter { it.isNotBlank() }.joinToString("<br/>") {
             it.replace(Regex("\\*\\*(.+?)\\*\\*"), "<b>$1</b>").replace(Regex("`(.+?)`"), "<code>$1</code>")
         }
     }

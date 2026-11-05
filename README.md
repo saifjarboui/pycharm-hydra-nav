@@ -74,6 +74,10 @@ Then in PyCharm: Settings → Plugins → ⚙ → Install Plugin from Disk… �
 
 `./gradlew runIde` opens a test PyCharm with the plugin loaded.
 
-The build downloads PyCharm `pycharmVersion` (`gradle.properties`). To build against a local install instead, set `pycharmPath=/path/to/PyCharm.app` in `~/.gradle/gradle.properties`.
+The build downloads PyCharm `pycharmVersion` (`gradle.properties`). To build against a local install instead, set `pycharmPath=/path/to/PyCharm.app` in `local.properties` (gitignored).
 
 `./gradlew verifyPlugin` runs the Plugin Verifier against the supported PyCharm releases.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
