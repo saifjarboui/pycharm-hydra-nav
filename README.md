@@ -5,6 +5,16 @@
 [![Build](https://github.com/saifjarboui/pycharm-hydra-nav/actions/workflows/build.yml/badge.svg)](https://github.com/saifjarboui/pycharm-hydra-nav/actions/workflows/build.yml)
 
 <!-- Plugin description -->
+Navigate and edit [Hydra](https://hydra.cc) configs from PyCharm:
+
+- **Defaults navigation**: Cmd/Ctrl+click a `defaults:` entry to open its YAML file; renaming the file updates the entry.
+- **`_target_` navigation**: jump to the Python module, class or method it names, installed packages and re-exports included.
+- **Interpolations**: Cmd/Ctrl+click `${data.image_size}`, `${.x}`, `${oc.select:...}` or `${oc.env:KEY}` to open the key it reads, or the `.env` line that defines it.
+- **Parameter keys**: click a key beside `_target_` to reach the `__init__` parameter; rename updates the key; F1 shows the Python docs.
+- **Completion**: `defaults:` options and group keys, `_target_` paths, `${...}` keys, unset parameters, `Literal`/`bool`/default values.
+- **Hide Comments and Docs**: one action folds every comment and docstring in the editor.
+- **No background work**: everything runs on click, hover or completion, so it costs nothing while you type.
+
 ![defaults navigation](docs/img/defaults.gif)
 
 Cmd/Ctrl+click on a Hydra `defaults:` entry opens its file:
@@ -37,9 +47,21 @@ Cmd/Ctrl+click on an interpolation opens the key it reads:
 ```yaml
 img_size: ${data.image_size}   # → image_size: in data/*.yaml (a chooser if several data options define it)
 seed: ${seed}                  # → seed: in this file or a primary config such as train.yaml
+lr: ${.base_lr}                # → base_lr: next to lr: in the same mapping
+wd: ${..weight_decay}          # → weight_decay: next to the mapping that holds wd:
+dim: ${oc.select:model.dim,64} # → model.dim, ignoring the default
+host: ${oc.env:DB_HOST}        # → DB_HOST= in the nearest .env file
 ```
 
-Which `data` option runs is only known at run time, so every candidate is offered. `${oc.env:...}`-style resolvers and relative `${..x}` aren't linked.
+Which `data` option runs is only known at run time, so every candidate is offered. What links:
+
+- `${a.b}`: the key, searched in this file's folder and the folders above it.
+- `${.x}` and `${..x}`: a sibling, or the parent's sibling, in this file.
+- `${oc.select:key,default}`: the `key`.
+- `${oc.env:KEY}`: the `KEY=` line of the nearest `.env` file, going up from this file's folder. It's only a guess at where the value comes from, since Hydra doesn't load `.env` by itself.
+
+The `.env` link is safe by construction. It runs only when you click, and it reads only a file named `.env` (not a symlink) in a folder of this project. It never reads your real environment, starts a process, opens a network connection or writes a file. It doesn't show, copy or store the value: it only moves the caret to the key.
+- Other resolvers: not linked.
 
 Cmd/Ctrl+click on a key beside `_target_` opens that parameter of the target's `__init__`, and renaming the parameter updates the key. F1 on a `_target_` segment shows the Python docs.
 
@@ -62,6 +84,14 @@ The `_target_` suggestions look up the Python code on each keystroke in that blo
 
 Code > HydraNav: Hide Comments and Docs (also in the editor's right-click menu) toggles folding of every comment and Python docstring in the current editor. A green check shows next to it while they're hidden. Bind a shortcut to it in Keymap if you want one.
 <!-- Plugin description end -->
+
+## Check the `.env` safety claims yourself
+
+```bash
+git grep -nE "java\.net|HttpRequests|ProcessBuilder|GeneralCommandLine|Runtime\.getRuntime|System\.getenv|writeText|WriteAction|executeOnPooledThread" -- src/main
+```
+
+It prints nothing: the plugin's code has no network, process, environment, file-write or background-thread calls. The file read is `HydraEnvReference.resolve()` in `HydraDefaultsReferenceContributor.kt`. This is a check of this repository's code, not an outside audit.
 
 ## Build and install
 

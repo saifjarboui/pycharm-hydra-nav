@@ -95,7 +95,45 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
     fun testInterpolationSameFile() =
         assertEquals(listOf("c.yaml:a"), interpolates("configs/c.yaml", "a: 1\nb: \"x_\${a}\"\n", "a}"))
 
-    fun testResolverIsNotAReference() = assertNull(refAt("configs/d.yaml", "home: \${oc.env:HOME}\n", "oc.env"))
+    fun testRelativeSibling() =
+        assertEquals(listOf("c.yaml:b"), interpolates("configs/c.yaml", "m:\n  a: \${.b}\n  b: 1\n", ".b}"))
+
+    fun testRelativeParentLevel() =
+        assertEquals(listOf("c.yaml:b"), interpolates("configs/c.yaml", "b: 1\nm:\n  a: \${..b}\n", "..b}"))
+
+    fun testRelativeNestedPath() =
+        assertEquals(listOf("c.yaml:y"), interpolates("configs/c.yaml", "m:\n  a: \${.x.y}\n  x:\n    y: 1\n", ".x.y}"))
+
+    fun testRelativeMissingIsUnresolved() =
+        assertNull(refAt("configs/c.yaml", "m:\n  a: \${.nope}\n", ".nope")?.resolve())
+
+    fun testOcSelectKey() =
+        assertEquals(listOf("c.yaml:seed"), interpolates("configs/c.yaml", "seed: 1\nx: \${oc.select:seed,0}\n", "seed,"))
+
+    private fun envTarget(text: String, word: String): String? =
+        refAt("configs/d.yaml", text, word)?.resolve()?.let { it.containingFile.name + ":" + it.text }
+
+    fun testEnvKeyResolvesToDotEnvLine() {
+        myFixture.addFileToProject(".env", "# c\nOTHER=1\nexport DB_HOST=db\n")
+        assertEquals(".env:DB_HOST", envTarget("h: \${oc.env:DB_HOST,localhost}\n", "DB_HOST"))
+    }
+
+    fun testEnvKeyNotInDotEnvIsUnresolved() {
+        myFixture.addFileToProject(".env", "OTHER=1\n")
+        assertNull(envTarget("h: \${oc.env:DB_HOST}\n", "DB_HOST"))
+    }
+
+    fun testEnvKeyAndEqualsOnDifferentLinesDoNotMatch() {
+        myFixture.addFileToProject(".env", "\n".repeat(50_000) + "DB_HOST\n=x\n")
+        assertNull(envTarget("h: \${oc.env:DB_HOST}\n", "DB_HOST"))
+    }
+
+    fun testEnvKeyAfterLongBlankRun() {
+        myFixture.addFileToProject(".env", "\n".repeat(50_000) + "DB_PORT=1\n")
+        assertEquals(".env:DB_PORT", envTarget("h: \${oc.env:DB_PORT}\n", "DB_PORT"))
+    }
+
+    fun testOtherResolverIsNotAReference() = assertNull(refAt("configs/d.yaml", "n: \${oc.decode:1}\n", "oc.decode"))
 
     fun testGroupOf() {
         assertEquals("server/db", groupOf("override /server/db@backup"))

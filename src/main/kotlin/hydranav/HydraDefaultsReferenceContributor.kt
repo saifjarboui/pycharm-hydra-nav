@@ -4,6 +4,7 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VFileProperty
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.ElementManipulators
@@ -17,6 +18,7 @@ import com.intellij.psi.PsiReferenceContributor
 import com.intellij.psi.PsiReferenceProvider
 import com.intellij.psi.PsiReferenceRegistrar
 import com.intellij.psi.ResolveResult
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.QualifiedName
 import com.intellij.util.ProcessingContext
 import com.jetbrains.python.psi.PyClass
@@ -50,15 +52,47 @@ private object Provider : PsiReferenceProvider() {
     }
 }
 
-private val INTERPOLATION = Regex("""\$\{(\w[\w.]*)}""") // `${oc.env:X}` resolvers and relative `${.x}` don't match
+// `${a.b}`, relative `${.a}` / `${..a}`, and the key of `${oc.select:a.b,default}`; other resolvers don't match
+private val INTERPOLATION = Regex("""\$\{(?:oc\.select:\s*)?(\.*)(\w[\w.]*)\s*[,}]""")
+private val ENV_INTERPOLATION = Regex("""\$\{oc\.env:\s*(\w+)\s*[,}]""")
 
-/** One reference per `${a.b}` in [scalar]; null when it has none. Only a regex here: this runs on every scalar. */
+/** One reference per `${a.b}` or `${oc.env:X}` in [scalar]; null when it has none. Only regexes here: this runs on every scalar. */
 private fun interpolationReferences(scalar: YAMLScalar): Array<PsiReference>? {
     if ("\${" !in scalar.text) return null
-    return INTERPOLATION.findAll(scalar.text).map { match ->
-        val key = match.groups[1]!!
-        HydraInterpolationReference(scalar, TextRange(key.range.first, key.range.last + 1), key.value.split('.'))
-    }.toList<PsiReference>().toTypedArray()
+    val keys = INTERPOLATION.findAll(scalar.text).mapNotNull { match ->
+        val dots = match.groups[1]!!.value.length
+        val key = match.groups[2]!!
+        val path = key.value.split('.')
+        if (path.any { it.isEmpty() }) null
+        else HydraInterpolationReference(scalar, TextRange(key.range.first - dots, key.range.last + 1), path, dots)
+    }
+    val envs = ENV_INTERPOLATION.findAll(scalar.text).map { match ->
+        val name = match.groups[1]!!
+        HydraEnvReference(scalar, TextRange(name.range.first, name.range.last + 1), name.value)
+    }
+    return (keys + envs).toList<PsiReference>().toTypedArray()
+}
+
+/**
+ * `${oc.env:DB_HOST}` → the `DB_HOST=...` line of the nearest `.env` file, going up from this file's folder.
+ * Only the key is linked, nothing is read from the real environment, and a `.env` is only a guess at where
+ * the variable comes from (Hydra doesn't load it by itself). Runs on click only.
+ */
+private class HydraEnvReference(scalar: YAMLScalar, range: TextRange, private val name: String) :
+    PsiReferenceBase<YAMLScalar>(scalar, range, true) {
+
+    override fun resolve(): PsiElement? {
+        val index = ProjectFileIndex.getInstance(element.project)
+        val line = Regex("""(?m)^[ \t]*(?:export[ \t]+)?(${Regex.escape(name)})[ \t]*=""") // [ \t] not \s: no crossing lines
+        var dir = element.containingFile.originalFile.virtualFile?.parent
+        while (dir != null && index.isInContent(dir)) {
+            val file = dir.findChild(".env")?.takeIf { !it.isDirectory && !it.`is`(VFileProperty.SYMLINK) }?.let { element.manager.findFile(it) }
+            val hit = file?.let { line.find(it.text) }
+            if (file != null && hit != null) return file.findElementAt(hit.groups[1]!!.range.first)
+            dir = dir.parent
+        }
+        return null
+    }
 }
 
 /**
@@ -66,12 +100,28 @@ private fun interpolationReferences(scalar: YAMLScalar): Array<PsiReference>? {
  * so all candidates are offered and the IDE shows a chooser when there are several. Going up from the file's
  * folder, the nearest level with a match wins. At each level it checks the key path `data.image_size` in the YAML
  * files there, and `image_size` in each YAML file of the `data` folder.
- * ponytail: relative `${..x}`, nested groups, `# @package` remapping and rename are not handled.
+ * Relative `${.x}` (sibling) and `${..x}` (parent's sibling) are resolved by walking up this file's PSI, no folders.
+ * ponytail: nested groups, `# @package` remapping, completion of relative keys and rename are not handled.
  */
-private class HydraInterpolationReference(scalar: YAMLScalar, range: TextRange, private val path: List<String>) :
-    PsiPolyVariantReferenceBase<YAMLScalar>(scalar, range, true) {
+private class HydraInterpolationReference(
+    scalar: YAMLScalar, range: TextRange, private val path: List<String>, private val dots: Int,
+) : PsiPolyVariantReferenceBase<YAMLScalar>(scalar, range, true) {
+
+    private fun resolveRelative(): Array<ResolveResult> {
+        var mapping = PsiTreeUtil.getParentOfType(element, YAMLMapping::class.java)
+        repeat(dots - 1) {
+            mapping = PsiTreeUtil.getParentOfType(mapping, YAMLMapping::class.java)
+        }
+        var key: YAMLKeyValue? = null
+        for (name in path) {
+            key = mapping?.getKeyValueByKey(name) ?: return ResolveResult.EMPTY_ARRAY
+            mapping = key.value as? YAMLMapping
+        }
+        return key?.let { PsiElementResolveResult.createResults(it) } ?: ResolveResult.EMPTY_ARRAY
+    }
 
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> {
+        if (dots > 0) return resolveRelative()
         val index = ProjectFileIndex.getInstance(element.project)
         var dir = element.containingFile.originalFile.virtualFile?.parent
         while (dir != null && index.isInContent(dir)) {
@@ -87,6 +137,7 @@ private class HydraInterpolationReference(scalar: YAMLScalar, range: TextRange, 
 
     /** Ctrl+Space in `${data.ti}`: the keys one level below `data`, at the nearest folder level that has any. */
     override fun getVariants(): Array<Any> {
+        if (dots > 0) return emptyArray()
         val parent = path.dropLast(1)
         val index = ProjectFileIndex.getInstance(element.project)
         var dir = element.containingFile.originalFile.virtualFile?.parent
