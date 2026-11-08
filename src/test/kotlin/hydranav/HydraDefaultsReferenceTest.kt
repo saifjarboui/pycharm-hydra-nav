@@ -228,4 +228,27 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
         complete("configs/experiment/p.yaml", "defaults:\n  - override /mo<caret>\n") // the only candidate is inserted directly
         myFixture.checkResult("defaults:\n  - override /model: <caret>\n")
     }
+
+    fun testRenameGroupFolderUpdatesEntry() {
+        val yaml = myFixture.addFileToProject("configs/train.yaml", "defaults:\n  - override /model: tiny\n")
+        myFixture.renameElement(myFixture.findFileInTempDir("configs/model").let { myFixture.psiManager.findDirectory(it)!! }, "net")
+        assertTrue(yaml.text, "override /net: tiny" in yaml.text)
+    }
+
+    fun testRenameConfigFileUpdatesEntry() {
+        val yaml = myFixture.addFileToProject("configs/train.yaml", "defaults:\n  - model: tiny\n")
+        myFixture.renameElement(myFixture.findFileInTempDir("configs/model/tiny.yaml").let { myFixture.psiManager.findFile(it)!! }, "big.yaml")
+        assertTrue(yaml.text, "model: big" in yaml.text)
+    }
+
+    fun testCompleteDefaultsKeywords() =
+        assertContainsElements(complete("configs/train.yaml", "defaults:\n  - <caret>\n"), "override ", "optional ", "_self_")
+
+    fun testCompleteNestedGroup() {
+        myFixture.addFileToProject("configs/model/enc/a.yaml", "x: 1\n")
+        assertContainsElements(complete("configs/train.yaml", "defaults:\n  - <caret>\n"), "model/enc: ")
+    }
+
+    fun testCompletePackage() =
+        assertSameElements(complete("configs/train.yaml", "defaults:\n  - data@<caret>\n"), "_global_", "_group_")
 }

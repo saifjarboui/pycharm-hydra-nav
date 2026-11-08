@@ -300,9 +300,43 @@ private object KwargProvider : PsiReferenceProvider() {
         val key = keyValue.key ?: return PsiReference.EMPTY_ARRAY
         if (keyValue.keyText.startsWith("_")) return PsiReference.EMPTY_ARRAY
         val mapping = keyValue.parent as? YAMLMapping ?: return PsiReference.EMPTY_ARRAY
+        if (isDefaultsEntry(mapping)) return groupReference(keyValue, key.textRangeInParent)
         if (targetNames(mapping) == null) return PsiReference.EMPTY_ARRAY
         return arrayOf(HydraKwargReference(keyValue, key.textRangeInParent))
     }
+}
+
+/** `- model: base` / `- override /server/db@pkg: x`: [mapping] is the lone pair of a top-level `defaults:` list item. */
+private fun isDefaultsEntry(mapping: YAMLMapping): Boolean {
+    val defaults = mapping.parent?.takeIf { mapping.keyValues.size == 1 }?.parent?.parent as? YAMLKeyValue ?: return false
+    return mapping.parent is YAMLSequenceItem && defaults.keyText == "defaults" && defaults.parent?.parent is YAMLDocument
+}
+
+private fun groupReference(keyValue: YAMLKeyValue, keyRange: TextRange): Array<PsiReference> {
+    val group = groupOf(keyValue.keyText)
+    val at = keyRange.startOffset + keyValue.keyText.indexOf(group)
+    return arrayOf(HydraGroupReference(keyValue, TextRange.from(at, group.length), group))
+}
+
+/** The group of a `defaults:` entry → its folder, so renaming the folder rewrites the entry. Runs on click or rename only. */
+private class HydraGroupReference(keyValue: YAMLKeyValue, range: TextRange, private val group: String) :
+    PsiReferenceBase<YAMLKeyValue>(keyValue, range, true) {
+
+    override fun resolve(): PsiElement? {
+        var dir = element.containingFile.originalFile.virtualFile?.parent
+        while (dir != null) {
+            dir.findFileByRelativePath(group)?.takeIf { it.isDirectory }?.let { return element.manager.findDirectory(it) }
+            dir = dir.parent
+        }
+        return null
+    }
+
+    // ponytail: only the last folder of `server/db` is tracked; renaming `server` leaves the entry
+    override fun handleElementRename(newElementName: String): PsiElement =
+        element.setName(element.keyText.replaceRange(rangeInElement.let { it.startOffset - keyStart()..it.endOffset - keyStart() - 1 },
+            group.substringBeforeLast('/', "").let { if (it.isEmpty()) newElementName else "$it/$newElementName" }))
+
+    private fun keyStart() = element.key?.textRangeInParent?.startOffset ?: 0
 }
 
 private class HydraKwargReference(keyValue: YAMLKeyValue, range: TextRange) :
@@ -354,11 +388,18 @@ class HydraKwargCompletionContributor : com.intellij.codeInsight.completion.Comp
         val document = parameters.editor.document
         val lineStart = document.getLineStartOffset(document.getLineNumber(parameters.offset))
         val typed = document.charsSequence.subSequence(lineStart, parameters.offset)
+        DEFAULTS_PACKAGE.matchEntire(typed)?.let { match ->
+            if (inDefaults(position)) result.withPrefixMatcher(match.groupValues[1]).run { listOf("_global_", "_group_").forEach { addElement(LookupElementBuilder.create(it)) } }
+            return
+        }
         DEFAULTS_KEY.matchEntire(typed)?.let { match ->
             if (!inDefaults(position)) return
             val file = parameters.originalFile.virtualFile ?: return
             val groups = result.withPrefixMatcher(match.groupValues[1])
             configGroups(file, position).forEach { groups.addElement(LookupElementBuilder.create("$it: ").withPresentableText(it)) }
+            if (typed.matches(Regex("""\s*-\s*\w*"""))) {
+                listOf("override ", "optional ", "_self_").forEach { groups.addElement(LookupElementBuilder.create(it)) }
+            }
             return
         }
         if (typed.matches(Regex("""\s*\w*"""))) return completeKeys(position, result) // a key at the start of its line
@@ -383,19 +424,23 @@ class HydraKwargCompletionContributor : com.intellij.codeInsight.completion.Comp
 }
 
 /** `  - override /mo` on a `defaults:` line: group 1 is the group typed so far. */
-private val DEFAULTS_KEY = Regex("""\s*-\s*(?:(?:override|optional)\s+)*/?(\w*)""")
+private val DEFAULTS_KEY = Regex("""\s*-\s*(?:(?:override|optional)\s+)*/?([\w/]*)""")
+
+/** `  - data@` on a `defaults:` line: group 1 is the package typed so far. */
+private val DEFAULTS_PACKAGE = Regex("""\s*-\s*(?:(?:override|optional)\s+)*/?[\w/]+@(\w*)""")
 
 private fun inDefaults(position: PsiElement): Boolean = generateSequence(position) { it.parent }.filterIsInstance<YAMLKeyValue>()
     .any { it.keyText == "defaults" && it.parent?.parent is YAMLDocument }
 
 /**
  * The folders holding YAML at the nearest level above [file] that has any: the config groups.
- * ponytail: a file in a leaf group (`experiment/x.yaml`) gets the root groups; nested groups (`model/encoder`) only from `model/`.
+ * Nested groups come back as `model/encoder`, two levels deep at most.
+ * ponytail: a file in a leaf group (`experiment/x.yaml`) gets the root groups, not its own siblings.
  */
 private fun configGroups(file: VirtualFile, foothold: PsiElement): List<String> {
     val index = ProjectFileIndex.getInstance(foothold.project)
     return generateSequence(file.parent) { it.parent }.takeWhile { index.isInContent(it) }
-        .map { dir -> dir.children.filter { d -> d.isDirectory && d.children.any { it.extension == "yaml" || it.extension == "yml" } }.map { it.name } }
+        .map { dir -> yamlGroups(dir, "", 2) }
         .firstOrNull { it.isNotEmpty() }.orEmpty()
 }
 
@@ -415,3 +460,9 @@ private fun yamlValue(python: String): String = when (python) {
     "False" -> "false"
     else -> python.removeSurrounding("\"").removeSurrounding("'")
 }
+
+private fun yamlGroups(dir: VirtualFile, prefix: String, depth: Int): List<String> = if (depth == 0) emptyList() else
+    dir.children.filter { it.isDirectory }.flatMap { d ->
+        (if (d.children.any { it.extension == "yaml" || it.extension == "yml" }) listOf(prefix + d.name) else emptyList()) +
+            yamlGroups(d, "$prefix${d.name}/", depth - 1)
+    }
