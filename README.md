@@ -7,11 +7,11 @@
 <!-- Plugin description -->
 Navigate and edit [Hydra](https://hydra.cc) configs from PyCharm:
 
-- **Defaults navigation**: Cmd/Ctrl+click a `defaults:` entry to open its YAML file; renaming the file updates the entry.
+- **Defaults navigation**: Cmd/Ctrl+click a `defaults:` entry to open its YAML file; renaming the file or the group folder updates the entry.
 - **`_target_` navigation**: jump to the Python module, class or method it names, installed packages and re-exports included.
 - **Interpolations**: Cmd/Ctrl+click `${data.image_size}`, `${.x}`, `${oc.select:...}` or `${oc.env:KEY}` to open the key it reads, or the `.env` line that defines it.
 - **Parameter keys**: click a key beside `_target_` to reach the `__init__` parameter; rename updates the key; F1 shows the Python docs.
-- **Completion**: `defaults:` options and group keys, `_target_` paths, `${...}` keys, unset parameters, `Literal`/`bool`/default values.
+- **Completion**: `defaults:` options, group keys (nested too), `override`/`optional`/`_self_` and `@package` names, `_target_` paths, `${...}` keys, unset parameters, `Literal`/`bool`/default values.
 - **Hide Comments and Docs**: one action folds every comment and docstring in the editor.
 - **No background work**: everything runs on click, hover or completion, so it costs nothing while you type.
 
@@ -76,7 +76,8 @@ Ctrl+Space completes `defaults:` options (the `*.yaml` files of the group), `_ta
 
 These also pop up while you type:
 
-- On a `defaults:` line, the group keys (`- mo` or `- override /mo` → `model: `), from the group folders next to the config.
+- On a `defaults:` line, the group keys (`- mo` or `- override /mo` → `model: `, nested groups as `model/encoder: `), from the group folders next to the config.
+- On a bare `- `, `override `, `optional ` and `_self_`; after `@`, `_global_` and `_group_`.
 - On a new key in a `_target_` block, the parameters not set yet (of `__init__`, or of the method), plus `_partial_`, `_recursive_` and `_convert_`.
 - On the value of such a key, the parameter's `Literal[...]` values, `true`/`false` for `bool`, `null` for `Optional`, and its default.
 
