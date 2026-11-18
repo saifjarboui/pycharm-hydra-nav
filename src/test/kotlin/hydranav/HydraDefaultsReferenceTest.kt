@@ -159,6 +159,15 @@ class HydraDefaultsReferenceTest : BasePlatformTestCase() {
         assertEquals("lr", (param as? PyNamedParameter)?.name)
     }
 
+    fun testKwargResolvesThroughDefaults() {
+        target("pkg.models.resnet.ResNetClassifier", "x")
+        myFixture.addFileToProject("configs/model/base.yaml", "_target_: pkg.models.resnet.ResNetClassifier\n")
+        myFixture.addFileToProject("configs/model/mid.yaml", "defaults:\n  - base\n  - _self_\n")
+        val text = "defaults:\n  - mid\n  - _self_\nlr: 0.1\n"
+        val param = refAt("configs/model/leaf.yaml", text, "lr")?.resolve()
+        assertEquals("lr", (param as? PyNamedParameter)?.name)
+    }
+
     fun testRenameParameterUpdatesKwarg() {
         target("pkg.models.resnet.ResNetClassifier", "x")
         val yaml = myFixture.addFileToProject("configs/model/k.yaml", "_target_: pkg.models.resnet.ResNetClassifier\nlr: 0.1\n")

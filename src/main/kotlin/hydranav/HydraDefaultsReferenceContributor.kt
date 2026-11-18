@@ -11,6 +11,7 @@ import com.intellij.psi.ElementManipulators
 import com.intellij.psi.PsiDirectory
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementResolveResult
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReferenceBase
 import com.intellij.psi.PsiReference
 import com.intellij.psi.PsiReferenceBase
@@ -35,6 +36,16 @@ import org.jetbrains.yaml.psi.YAMLScalar
 import org.jetbrains.yaml.psi.YAMLSequenceItem
 
 /** Makes the option of each Hydra `defaults:` entry a reference to its YAML file. */
+/** The first `<dir>/<path>.yaml` going up from [from]'s folder. */
+private fun findConfigFile(from: PsiFile, path: String): PsiFile? {
+    var dir = from.virtualFile?.parent
+    while (dir != null) {
+        dir.findFileByRelativePath("$path.yaml")?.let { return from.manager.findFile(it) }
+        dir = dir.parent
+    }
+    return null
+}
+
 class HydraDefaultsReferenceContributor : PsiReferenceContributor() {
     override fun registerReferenceProviders(registrar: PsiReferenceRegistrar) {
         registrar.registerReferenceProvider(PlatformPatterns.psiElement(YAMLScalar::class.java), Provider)
@@ -263,14 +274,7 @@ private class HydraConfigReference(scalar: YAMLScalar, private val path: String)
         true, // soft: an `optional` entry may name a file that is not there
     ) {
 
-    override fun resolve(): PsiElement? {
-        var dir = element.containingFile.originalFile.virtualFile?.parent
-        while (dir != null) {
-            dir.findFileByRelativePath("$path.yaml")?.let { return element.manager.findFile(it) }
-            dir = dir.parent
-        }
-        return null
-    }
+    override fun resolve(): PsiElement? = findConfigFile(element.containingFile.originalFile, path)
 
     /** Ctrl+Space: the `*.yaml` options of the nearest `<group>` folder, or of this file's folder for a bare entry. */
     override fun getVariants(): Array<Any> {
@@ -301,9 +305,30 @@ private object KwargProvider : PsiReferenceProvider() {
         if (keyValue.keyText.startsWith("_")) return PsiReference.EMPTY_ARRAY
         val mapping = keyValue.parent as? YAMLMapping ?: return PsiReference.EMPTY_ARRAY
         if (isDefaultsEntry(mapping)) return groupReference(keyValue, key.textRangeInParent)
-        if (targetNames(mapping) == null) return PsiReference.EMPTY_ARRAY
+        if (targetNames(mapping) == null && !isInheriting(mapping)) return PsiReference.EMPTY_ARRAY
         return arrayOf(HydraKwargReference(keyValue, key.textRangeInParent))
     }
+}
+
+/** A top-level mapping with a `defaults:` list: its `_target_` may come from a config it extends. */
+private fun isInheriting(mapping: YAMLMapping) = mapping.parent is YAMLDocument && mapping.getKeyValueByKey("defaults") != null
+
+/**
+ * The callable of the nearest `_target_` in the configs [mapping] extends through `defaults:`, the later entry first.
+ * ponytail: group entries are followed like bare ones; `_self_` order and `override` are not modelled.
+ */
+private fun inheritedCallable(mapping: YAMLMapping, depth: Int = 5): PyFunction? {
+    if (depth == 0) return null
+    val defaults = mapping.getKeyValueByKey("defaults")?.value as? com.intellij.psi.PsiElement ?: return null
+    val items = PsiTreeUtil.findChildrenOfType(defaults, YAMLSequenceItem::class.java).reversed()
+    for (item in items) {
+        val scalar = PsiTreeUtil.findChildOfType(item, YAMLScalar::class.java) ?: continue
+        val path = defaultsPath(scalar) ?: continue
+        val parentMapping = (findConfigFile(scalar.containingFile.originalFile, path) as? YAMLFile)
+            ?.documents?.firstOrNull()?.topLevelValue as? YAMLMapping ?: continue
+        (targetCallable(parentMapping) ?: inheritedCallable(parentMapping, depth - 1))?.let { return it }
+    }
+    return null
 }
 
 /** `- model: base` / `- override /server/db@pkg: x`: [mapping] is the lone pair of a top-level `defaults:` list item. */
@@ -344,7 +369,8 @@ private class HydraKwargReference(keyValue: YAMLKeyValue, range: TextRange) :
 
     override fun resolve(): PsiElement? {
         val mapping = element.parent as? YAMLMapping ?: return null
-        return targetCallable(mapping)?.parameterList?.findParameterByName(element.keyText)
+        val callable = targetCallable(mapping) ?: inheritedCallable(mapping)
+        return callable?.parameterList?.findParameterByName(element.keyText)
     }
 
     override fun handleElementRename(newElementName: String): PsiElement = element.setName(newElementName)
